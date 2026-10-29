@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Детектив — Интерактивная Викторина</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #000;
+    color: #fff;
+  }
+
+  /* ===== ВИДЕО-СЛОИ ===== */
+  .video-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  #videoWelcome {
+    z-index: 1;
+  }
+
+  #videoSuccess,
+  #videoOops {
+    z-index: 2;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  #videoSuccess.active,
+  #videoOops.active {
+    opacity: 1;
+  }
+
+  /* ===== ВЕРХНЯЯ ПАНЕЛЬ ===== */
+  .top-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 30px;
+    background: linear-gradient(180deg, rgba(10, 15, 40, 0.85) 0%, rgba(10, 15, 40, 0) 100%);
+    pointer-events: none;
+  }
+
+  .top-bar > * {
+    pointer-events: auto;
+  }
+
+  .game-title {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, #00e5ff, #b066ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  }
+
+  .stars-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .star {
+    font-size: 28px;
+    filter: grayscale(100%) brightness(0.4);
+    transition: all 0.4s ease;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0);
+  }
+
+  .star.collected {
+    filter: grayscale(0%) brightness(1);
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+    animation: starPop 0.6s ease;
+  }
+
+  @keyframes starPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+
+  .restart-btn {
+    padding: 10px 20px;
+    background: rgba(176, 102, 255, 0.2);
+    border: 1px solid rgba(176, 102, 255, 0.5);
+    color: #fff;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    letter-spacing: 0.5px;
+  }
+
+  .restart-btn:hover {
+    background: rgba(176, 102, 255, 0.4);
+    border-color: rgba(176, 102, 255, 0.9);
+    box-shadow: 0 0 20px rgba(176, 102, 255, 0.5);
+    transform: translateY(-2px);
+  }
+
+  /* ===== ПАНЕЛЬ ВОПРОСОВ ===== */
+  .question-panel {
+    position: fixed;
+    left: 30px;
+    bottom: 30px;
+    width: 36%;
+    max-width: 520px;
+    min-width: 280px;
+    z-index: 10;
+    background: rgba(15, 20, 45, 0.55);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 20px;
+    padding: 28px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 0 40px rgba(0, 229, 255, 0.1);
+  }
+
+  .question-number {
+    font-size: 12px;
+    color: #00e5ff;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+
+  .question-text {
+    font-size: 22px;
+    line-height: 1.4;
+    margin-bottom: 24px;
+    font-weight: 500;
+    color: #fff;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  }
+
+  .question-text .blank {
+    display: inline-block;
+    min-width: 40px;
+    border-bottom: 2px solid #00e5ff;
+    margin: 0 4px;
+    text-align: center;
+    color: #00e5ff;
+    font-weight: 700;
+  }
+
+  .answers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .answer-btn {
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 14px;
+    color: #fff;
+    font-size: 17px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.25s ease;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .answer-btn:hover:not(:disabled) {
+    background: rgba(0, 229, 255, 0.15);
+    border-color: rgba(0, 229, 255, 0.6);
+    transform: translateX(4px);
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+  }
+
+  .answer-btn:disabled {
+    cursor: not-allowed;
+  }
+
+  .answer-btn.correct {
+    background: rgba(0, 255, 136, 0.25) !important;
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 25px rgba(0, 255, 136, 0.5);
+    animation: correctPulse 0.6s ease;
+  }
+
+  .answer-btn.wrong {
+    background: rgba(255, 60, 100, 0.25) !important;
+    border-color: #ff3c64 !important;
+    box-shadow: 0 0 25px rgba(255, 60, 100, 0.5);
+    animation: shake 0.5s ease;
+  }
+
+  @keyframes correctPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+  }
+
+  .feedback-message {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+    display: none;
+  }
+
+  .feedback-message.show {
+    display: block;
+  }
+
+  .feedback-message.error {
+    background: rgba(255, 60, 100, 0.2);
+    border: 1px solid rgba(255, 60, 100, 0.5);
+    color: #ffb0be;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== ФИНАЛЬНЫЙ ЭКРАН ===== */
+  .final-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 20;
+    background: rgba(5, 10, 30, 0.85);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .final-screen.show {
+    display: flex;
+    animation: fadeIn 0.6s ease;
+  }
+
+  .final-title {
+    font-size: 64px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #00e5ff, #b066ff, #ff66c4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+    animation: finalGlow 2s ease infinite;
+  }
+
+  @keyframes finalGlow {
+    0%, 100% { filter: drop-shadow(0 0 20px rgba(0, 229, 255, 0.5)); }
+    50% { filter: drop-shadow(0 0 40px rgba(176, 102, 255, 0.8)); }
+  }
+
+  .final-subtitle {
+    font-size: 22px;
+    color: #cde4ff;
+    margin-bottom: 40px;
+    max-width: 600px;
+    line-height: 1.5;
+  }
+
+  .final-stars {
+    font-size: 50px;
+    margin-bottom: 30px;
+    letter-spacing: 10px;
+  }
+
+  .play-again-btn {
+    padding: 16px 40px;
+    background: linear-gradient(135deg, #00e5ff, #b066ff);
+    border: none;
+    border-radius: 30px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 30px rgba(0, 229, 255, 0.5);
+  }
+
+  .play-again-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 50px rgba(176, 102, 255, 0.8);
+  }
+
+  /* ===== АДАПТИВНОСТЬ ===== */
+  @media (max-width: 900px) {
+    .question-panel {
+      width: 50%;
+      left: 20px;
+      bottom: 20px;
+      padding: 22px;
+    }
+
+    .game-title {
+      font-size: 20px;
+    }
+
+    .question-text {
+      font-size: 18px;
+    }
+
+    .answer-btn {
+      font-size: 15px;
+      padding: 14px 18px;
+    }
+
+    .star {
+      font-size: 24px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .top-bar {
+      padding: 12px 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .game-title {
+      font-size: 16px;
+      order: 1;
+      width: 100%;
+      text-align: center;
+    }
+
+    .stars-container {
+      order: 2;
+    }
+
+    .restart-btn {
+      order: 3;
+      padding: 8px 14px;
+      font-size: 12px;
+    }
+
+    .question-panel {
+      width: calc(100% - 30px);
+      left: 15px;
+      right: 15px;
+      bottom: 15px;
+      min-width: auto;
+      padding: 18px;
+    }
+
+    .question-text {
+      font-size: 16px;
+    }
+
+    .answer-btn {
+      font-size: 14px;
+      padding: 12px 16px;
+    }
+
+    .final-title {
+      font-size: 42px;
+    }
+
+    .final-subtitle {
+      font-size: 17px;
+    }
+
+    .star {
+      font-size: 22px;
+    }
+
+    .final-stars {
+      font-size: 36px;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ВИДЕО-СЛОИ -->
+  <video id="videoWelcome" class="video-layer" autoplay muted loop playsinline></video>
+  <video id="videoSuccess" class="video-layer" playsinline></video>
+  <video id="videoOops" class="video-layer" playsinline></video>
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ -->
+  <div class="top-bar">
+    <div class="game-title">🔍 ДЕТЕКТИВ</div>
+    <div class="stars-container">
+      <span class="star" id="star1">⭐</span>
+      <span class="star" id="star2">⭐</span>
+      <span class="star" id="star3">⭐</span>
+      <span class="star" id="star4">⭐</span>
+      <span class="star" id="star5">⭐</span>
+    </div>
+    <button class="restart-btn" id="restartBtn">🔄 Начать заново</button>
+  </div>
+
+  <!-- ПАНЕЛЬ ВОПРОСОВ -->
+  <div class="question-panel" id="questionPanel">
+    <div class="question-number" id="questionNumber">ЗАДАНИЕ 1 / 5</div>
+    <div class="question-text" id="questionText"></div>
+    <div class="answers-list" id="answersList"></div>
+    <div class="feedback-message error" id="feedbackMessage"></div>
+  </div>
+
+  <!-- ФИНАЛЬНЫЙ ЭКРАН -->
+  <div class="final-screen" id="finalScreen">
+    <div class="final-title">ПОЗДРАВЛЯЕМ!</div>
+    <div class="final-stars">⭐⭐⭐⭐⭐</div>
+    <div class="final-subtitle">Ты прошёл все испытания и собрал пять звёзд!</div>
+    <button class="play-again-btn" id="playAgainBtn">🎮 Играть снова</button>
+  </div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ===== ДАННЫЕ =====
+  const questions = [
+    {
+      question: 'I have got ___ apple.',
+      answers: ['a', 'an'],
+      correctIndex: 1
+    },
+    {
+      question: 'This is ___ cat.',
+      answers: ['a', 'an'],
+      correctIndex: 0
+    },
+    {
+      question: 'She has ___ orange pen.',
+      answers: ['a', 'an'],
+      correctIndex: 1
+    },
+    {
+      question: '___ is my book here on the table.',
+      answers: ['This', 'That'],
+      correctIndex: 0
+    },
+    {
+      question: 'Look at ___ birds up in the sky!',
+      answers: ['this', 'those'],
+      correctIndex: 1
+    }
+  ];
+
+  // ===== СОСТОЯНИЕ =====
+  let currentQuestionIndex = 0;
+  let starsCollected = 0;
+  let isLocked = false;
+  let isProcessing = false;
+  let activeTimeoutId = null;
+
+  // ===== ЭЛЕМЕНТЫ =====
+  const videoWelcome = document.getElementById('videoWelcome');
+  const videoSuccess = document.getElementById('videoSuccess');
+  const videoOops = document.getElementById('videoOops');
+  const questionNumberEl = document.getElementById('questionNumber');
+  const questionTextEl = document.getElementById('questionText');
+  const answersListEl = document.getElementById('answersList');
+  const feedbackMessageEl = document.getElementById('feedbackMessage');
+  const restartBtn = document.getElementById('restartBtn');
+  const playAgainBtn = document.getElementById('playAgainBtn');
+  const finalScreen = document.getElementById('finalScreen');
+  const stars = [
+    document.getElementById('star1'),
+    document.getElementById('star2'),
+    document.getElementById('star3'),
+    document.getElementById('star4'),
+    document.getElementById('star5')
+  ];
+
+  // ===== ИНИЦИАЛИЗАЦИЯ ВИДЕО С ПРЯМЫМИ ССЫЛКАМИ НА GITHUB =====
+  videoWelcome.src = 'https://raw.githubusercontent.com/svkol07/game/main/privet.mp4';
+  videoSuccess.src = 'https://raw.githubusercontent.com/svkol07/game/main/ura.mp4';
+  videoOops.src = 'https://raw.githubusercontent.com/svkol07/game/main/ups.mp4';
+
+  // Запуск фонового видео
+  videoWelcome.play().catch(() => {
+    document.addEventListener('click', function tryPlay() {
+      videoWelcome.play().catch(() => {});
+      document.removeEventListener('click', tryPlay);
+    }, { once: true });
+  });
+
+  // ===== УТИЛИТЫ =====
+  function clearActiveTimeout() {
+    if (activeTimeoutId !== null) {
+      clearTimeout(activeTimeoutId);
+      activeTimeoutId = null;
+    }
+  }
+
+  function unlockInterface() {
+    isLocked = false;
+    isProcessing = false;
+    const buttons = answersListEl.querySelectorAll('.answer-btn');
+    buttons.forEach(btn => {
+      btn.disabled = false;
+    });
+  }
+
+  function lockInterface() {
+    isLocked = true;
+    isProcessing = true;
+    const buttons = answersListEl.querySelectorAll('.answer-btn');
+    buttons.forEach(btn => {
+      btn.disabled = true;
+    });
+  }
+
+  function collectStar() {
+    if (starsCollected < stars.length) {
+      stars[starsCollected].classList.add('collected');
+      starsCollected++;
+    }
+  }
+
+  function resetStars() {
+    stars.forEach(s => s.classList.remove('collected'));
+    starsCollected = 0;
+  }
+
+  // ===== ОТРИСОВКА ВОПРОСА =====
+  function renderQuestion() {
+    if (currentQuestionIndex >= questions.length) {
+      showFinalScreen();
+      return;
+    }
+
+    const q = questions[currentQuestionIndex];
+    questionNumberEl.textContent = `ЗАДАНИЕ ${currentQuestionIndex + 1} / ${questions.length}`;
+
+    const formattedQuestion = q.question.replace('___', '<span class="blank">___</span>');
+    questionTextEl.innerHTML = formattedQuestion;
+
+    answersListEl.innerHTML = '';
+    feedbackMessageEl.classList.remove('show');
+    feedbackMessageEl.textContent = '';
+
+    q.answers.forEach((answer, index) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = answer;
+      btn.addEventListener('click', () => handleAnswer(index, btn));
+      answersListEl.appendChild(btn);
+    });
+
+    unlockInterface();
+  }
+
+  // ===== ОБРАБОТКА ОТВЕТА =====
+  function handleAnswer(selectedIndex, buttonEl) {
+    if (isLocked || isProcessing) return;
+
+    const q = questions[currentQuestionIndex];
+    const isCorrect = selectedIndex === q.correctIndex;
+
+    if (isCorrect) {
+      handleCorrect(buttonEl);
+    } else {
+      handleWrong(buttonEl);
+    }
+  }
+
+  function handleCorrect(buttonEl) {
+    lockInterface();
+
+    buttonEl.classList.add('correct');
+
+    collectStar();
+
+    playReactionVideo(videoSuccess, () => {
+      currentQuestionIndex++;
+      renderQuestion();
+    });
+  }
+
+  function handleWrong(buttonEl) {
+    lockInterface();
+
+    buttonEl.classList.add('wrong');
+
+    feedbackMessageEl.textContent = 'Упс! Попробуй ещё раз!';
+    feedbackMessageEl.classList.add('show');
+
+    playReactionVideo(videoOops, () => {
+      unlockInterface();
+    });
+  }
+
+  // ===== ВОСПРОИЗВЕДЕНИЕ ВИДЕО РЕАКЦИИ =====
+  function playReactionVideo(videoElement, onEndedCallback) {
+    videoElement.currentTime = 0;
+    videoElement.classList.add('active');
+
+    let endedFired = false;
+    let fallbackFired = false;
+
+    const fallbackTimer = setTimeout(() => {
+      if (!endedFired) {
+        fallbackFired = true;
+        finishReaction();
+      }
+    }, 8000);
+
+    function finishReaction() {
+      if (endedFired) return;
+      endedFired = true;
+      clearTimeout(fallbackTimer);
+
+      videoElement.classList.remove('active');
+      videoElement.pause();
+      videoElement.currentTime = 0;
+
+      if (onEndedCallback) {
+        onEndedCallback();
+      }
+    }
+
+    const endedHandler = function() {
+      if (!fallbackFired) {
+        finishReaction();
+      }
+    };
+
+    const errorHandler = function() {
+      if (!endedFired && !fallbackFired) {
+        fallbackFired = true;
+        clearTimeout(fallbackTimer);
+        videoElement.classList.remove('active');
+        videoElement.pause();
+        if (onEndedCallback) {
+          setTimeout(onEndedCallback, 500);
+        }
+      }
+    };
+
+    videoElement.addEventListener('ended', endedHandler, { once: true });
+    videoElement.addEventListener('error', errorHandler, { once: true });
+
+    const playPromise = videoElement.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {
+        if (!endedFired && !fallbackFired) {
+          fallbackFired = true;
+          clearTimeout(fallbackTimer);
+          videoElement.classList.remove('active');
+          if (onEndedCallback) {
+            setTimeout(onEndedCallback, 1500);
+          }
+        }
+      });
+    }
+  }
+
+  // ===== ФИНАЛЬНЫЙ ЭКРАН =====
+  function showFinalScreen() {
+    finalScreen.classList.add('show');
+  }
+
+  function hideFinalScreen() {
+    finalScreen.classList.remove('show');
+  }
+
+  // ===== ПЕРЕЗАПУСК =====
+  function resetGame() {
+    videoSuccess.pause();
+    videoSuccess.currentTime = 0;
+    videoSuccess.classList.remove('active');
+
+    videoOops.pause();
+    videoOops.currentTime = 0;
+    videoOops.classList.remove('active');
+
+    clearActiveTimeout();
+
+    currentQuestionIndex = 0;
+    resetStars();
+
+    feedbackMessageEl.classList.remove('show');
+    feedbackMessageEl.textContent = '';
+
+    hideFinalScreen();
+
+    unlockInterface();
+
+    videoWelcome.play().catch(() => {});
+
+    renderQuestion();
+  }
+
+  // ===== ОБРАБОТЧИКИ КНОПОК =====
+  restartBtn.addEventListener('click', resetGame);
+  playAgainBtn.addEventListener('click', resetGame);
+
+  // ===== ЗАПУСК =====
+  renderQuestion();
+
+})();
+</script>
+</body>
+</html>
